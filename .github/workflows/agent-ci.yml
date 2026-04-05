@@ -88,13 +88,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+
           git add reports/history
+
           if git diff --cached --quiet; then
             echo "No report snapshot changes to commit"
             exit 0
           fi
+
           git commit -m "chore(ci): add agent report snapshots [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin HEAD:"${GITHUB_REF_NAME}"
 
       - name: Stop preview server
