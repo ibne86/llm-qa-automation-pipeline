@@ -69,10 +69,123 @@ function normalizeBugSummary(analysis, screenshotPath) {
   };
 }
 
+function slugify(text) {
+  return (
+    String(text || "screenshot")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "screenshot"
+  );
+}
+
+async function getDefaultBranch(headers, owner, repo) {
+  const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+  const response = await fetch(repoUrl, { method: "GET", headers });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to read repo info: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.default_branch || "main";
+}
+
+async function uploadFileToRepo({
+  owner,
+  repo,
+  token,
+  repoPath,
+  absoluteFilePath,
+  commitMessage,
+  branch,
+}) {
+  const fileBuffer = await fs.readFile(absoluteFilePath);
+  const contentBase64 = fileBuffer.toString("base64");
+
+  const headers = {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+    accept: "application/vnd.github+json",
+    "user-agent": "llm-qa-automation-pipeline",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${repoPath}`;
+
+  const response = await fetch(apiUrl, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      message: commitMessage,
+      content: contentBase64,
+      branch,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Screenshot upload failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    apiResponse: data,
+    githubBlobUrl: data.content?.html_url || "",
+    rawUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${repoPath}`,
+    repoPath,
+  };
+}
+
+async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
+  const token = (process.env.GITHUB_TOKEN || "").trim();
+  const owner = (process.env.GITHUB_OWNER || "").trim();
+  const repo = (process.env.GITHUB_REPO || "").trim();
+
+  if (!token || !owner || !repo || !screenshotAbsolutePath) {
+    return null;
+  }
+
+  const headers = {
+    authorization: `Bearer ${token}`,
+    accept: "application/vnd.github+json",
+    "user-agent": "llm-qa-automation-pipeline",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  const branch = await getDefaultBranch(headers, owner, repo);
+  const ext = path.extname(screenshotAbsolutePath) || ".png";
+  const fileName = `${Date.now()}-${slugify(summary.title)}${ext}`;
+  const repoPath = `artifacts/screenshots/${fileName}`;
+
+  return uploadFileToRepo({
+    owner,
+    repo,
+    token,
+    repoPath,
+    absoluteFilePath: screenshotAbsolutePath,
+    commitMessage: `Add failure screenshot for issue: ${summary.title}`,
+    branch,
+  });
+}
+
 function toMarkdown(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
+
+  const attachmentSection = summary.screenshot_url
+    ? `## Attachment
+![Failure screenshot](${summary.screenshot_url})
+
+[Open screenshot](${summary.screenshot_url})`
+    : summary.screenshot_path
+      ? `## Attachment
+- Screenshot path: \`${summary.screenshot_path}\``
+      : `## Attachment
+- Screenshot: not available`;
 
   return `# ${summary.title}
 
@@ -94,8 +207,7 @@ ${summary.expected_result}
 ## Actual result
 ${summary.actual_result}
 
-## Attachment
-${summary.screenshot_path ? `- Screenshot: \`${summary.screenshot_path}\`` : "- Screenshot: not available"}
+${attachmentSection}
 `;
 }
 
@@ -103,6 +215,17 @@ function buildGitHubIssueBody(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
+
+  const attachmentSection = summary.screenshot_url
+    ? `## Attachment
+![Failure screenshot](${summary.screenshot_url})
+
+[Open screenshot](${summary.screenshot_url})`
+    : summary.screenshot_path
+      ? `## Attachment
+- Screenshot path: \`${summary.screenshot_path}\``
+      : `## Attachment
+- Screenshot: not available`;
 
   return `## Summary
 ${summary.summary}
@@ -122,8 +245,7 @@ ${summary.expected_result}
 ## Actual result
 ${summary.actual_result}
 
-## Attachment
-${summary.screenshot_path ? `- Screenshot path: \`${summary.screenshot_path}\`` : "- Screenshot: not available"}
+${attachmentSection}
 `;
 }
 
@@ -324,6 +446,22 @@ Task:
     screenshotAbsolutePath || ""
   );
 
+  if (bugSummary.is_real_bug && screenshotAbsolutePath) {
+    try {
+      const uploadedScreenshot = await uploadScreenshotToRepo(
+        bugSummary,
+        screenshotAbsolutePath
+      );
+
+      if (uploadedScreenshot?.rawUrl) {
+        bugSummary.screenshot_url = uploadedScreenshot.rawUrl;
+        bugSummary.screenshot_repo_path = uploadedScreenshot.repoPath;
+      }
+    } catch (error) {
+      console.error(`Screenshot upload skipped: ${error.message}`);
+    }
+  }
+
   const bugSummaryJsonPath = path.resolve(reportsDir, "bug-summary.json");
   const bugSummaryMdPath = path.resolve(reportsDir, "bug-summary.md");
 
@@ -355,6 +493,8 @@ Task:
       bugSummaryJsonPath,
       bugSummaryMdPath,
       screenshotPath: screenshotAbsolutePath || "",
+      screenshotUrl: bugSummary.screenshot_url || "",
+      screenshotRepoPath: bugSummary.screenshot_repo_path || "",
       issueNumber: issueResult.issueNumber || null,
       issueUrl: issueResult.issueUrl || "",
       issueCreated: issueResult.created || false,
