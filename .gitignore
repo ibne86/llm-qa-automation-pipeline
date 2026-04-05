@@ -1,0 +1,15 @@
+```gitignore
+node_modules/
+app/dist/
+playwright-report/
+test-results/
+.DS_Store
+.env
+
+reports/*.json
+reports/*.md
+!reports/.gitkeep
+
+generated-tests/*.spec.js
+pages/LoginPage.js
+```

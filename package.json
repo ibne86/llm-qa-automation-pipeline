@@ -1,0 +1,25 @@
+{
+  "name": "ai-test-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config app/vite.config.js",
+    "build": "vite build --config app/vite.config.js",
+    "preview": "vite preview --config app/vite.config.js",
+    "install:browsers": "npx playwright install chromium",
+    "agent:run": "node scripts/run-agent.js",
+    "agent:inspect": "node scripts/inspect-ui.js",
+    "agent:analyze": "node scripts/analyze-and-create-issue.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "playwright": "latest",
+    "vite": "latest"
+  }
+}
