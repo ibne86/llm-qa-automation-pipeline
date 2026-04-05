@@ -437,13 +437,27 @@ Requirements:
   console.log(`Execution report saved to: ${reportPath}`);
 
   if (execution.success) {
-    console.log("Generated Playwright test executed successfully.");
-  } else {
-    console.log("Generated Playwright test failed.");
-    console.log("Check reports/execution-result.json for details.");
+  console.log("Generated Playwright test executed successfully.");
+} else {
+  console.log("Generated Playwright test failed.");
+  console.log("Pipeline will continue to bug analysis.");
+  console.log("Check reports/execution-result.json for details.");
+
+  if (execution.stdout?.trim()) {
+    console.log("Playwright stdout:");
+    console.log(execution.stdout);
   }
 
-  await execFile(
+  if (execution.stderr?.trim()) {
+    console.error("Playwright stderr:");
+    console.error(execution.stderr);
+  }
+}
+
+  console.log("Starting bug analysis and GitHub issue step...");
+
+try {
+  const analysisResult = await execFile(
     process.execPath,
     [
       "scripts/analyze-and-create-issue.js",
@@ -454,6 +468,29 @@ Requirements:
     ],
     { cwd: projectRoot, env: process.env }
   );
+
+  if (analysisResult.stdout?.trim()) {
+    console.log(analysisResult.stdout);
+  }
+
+  if (analysisResult.stderr?.trim()) {
+    console.error(analysisResult.stderr);
+  }
+
+  console.log("Bug analysis step finished.");
+} catch (error) {
+  console.error("Bug analysis step failed.");
+
+  if (error.stdout?.trim()) {
+    console.log(error.stdout);
+  }
+
+  if (error.stderr?.trim()) {
+    console.error(error.stderr);
+  }
+
+  throw error;
+}
 }
 
 main().catch((err) => {
