@@ -155,7 +155,7 @@ async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  const branch = await getDefaultBranch(headers, owner, repo);
+  const branch = (process.env.GITHUB_UPLOAD_BRANCH || process.env.GITHUB_REF_NAME || "").trim() || await getDefaultBranch(headers, owner, repo);
   const ext = path.extname(screenshotAbsolutePath) || ".png";
   const fileName = `${Date.now()}-${slugify(summary.title)}${ext}`;
   const repoPath = `artifacts/screenshots/${fileName}`;
