@@ -102,7 +102,7 @@ The login app is purposely incorrect.
 ## 📁 Folder Structure
 
 ```text
-ai-test-agent/
+llm-qa-automation-pipeline/
 ├─ app/
 ├─ generated-tests/
 ├─ pages/
