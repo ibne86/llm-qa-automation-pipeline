@@ -1,0 +1,37 @@
+{
+  "runId": "2026-04-05T18-14-41-644Z",
+  "generatedAt": "2026-04-05T18:15:20.703Z",
+  "storiesDirectory": "stories/samples",
+  "totalStories": 2,
+  "executionPassed": 0,
+  "executionFailed": 2,
+  "realBugsFound": 2,
+  "issuesCreated": 2,
+  "infrastructureFailures": 0,
+  "stories": [
+    {
+      "storyName": "login-bug-regression.txt",
+      "storySlug": "login-bug-regression",
+      "storyPath": "stories/samples/login-bug-regression.txt",
+      "commandExitCode": 0,
+      "commandFailed": false,
+      "executionSuccess": false,
+      "realBug": true,
+      "issueCreated": true,
+      "issueUrl": "https://github.com/ibne86/llm-qa-automation-pipeline/issues/7",
+      "reportDir": "reports/history/2026-04-05T18-14-41-644Z/login-bug-regression"
+    },
+    {
+      "storyName": "login-core-flow.txt",
+      "storySlug": "login-core-flow",
+      "storyPath": "stories/samples/login-core-flow.txt",
+      "commandExitCode": 0,
+      "commandFailed": false,
+      "executionSuccess": false,
+      "realBug": true,
+      "issueCreated": true,
+      "issueUrl": "https://github.com/ibne86/llm-qa-automation-pipeline/issues/8",
+      "reportDir": "reports/history/2026-04-05T18-14-41-644Z/login-core-flow"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "storyPath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/stories/samples/login-bug-regression.txt",
+  "selectorMapPath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/selector-map.json",
+  "generatedAt": "2026-04-05T18:14:53.876Z",
+  "generatedFiles": [
+    {
+      "relativePath": "pages/LoginPage.js",
+      "absolutePath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/pages/LoginPage.js"
+    },
+    {
+      "relativePath": "generated-tests/login.generated.spec.js",
+      "absolutePath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/generated-tests/login.generated.spec.js"
+    }
+  ],
+  "success": false,
+  "exitCode": 1,
+  "stdout": "\nRunning 2 tests using 1 worker\n·F\n\n  1) generated-tests/login.generated.spec.js:11:1 › valid email + wrong password should fail ───────\n\n    Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\n    Locator: getByText('Invalid email or password.', { exact: true })\n    Expected: visible\n    Timeout: 5000ms\n    Error: element(s) not found\n\n    Call log:\n    \u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n    \u001b[2m  - waiting for getByText('Invalid email or password.', { exact: true })\u001b[22m\n\n\n       at ../pages/LoginPage.js:41\n\n      39 |\n      40 |   async assertLoginFailure() {\n    > 41 |     await expect(this.errorMessage).toBeVisible();\n         |                                     ^\n      42 |     await expect(this.successMessage).not.toBeVisible();\n      43 |   }\n      44 | }\n        at LoginPage.assertLoginFailure (/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/pages/LoginPage.js:41:37)\n        at /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/generated-tests/login.generated.spec.js:15:19\n\n    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────\n    test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png\n    ────────────────────────────────────────────────────────────────────────────────────────────────\n\n    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────\n    test-results/login.generated-valid-email-wrong-password-should-fail/video.webm\n    ────────────────────────────────────────────────────────────────────────────────────────────────\n\n    Error Context: test-results/login.generated-valid-email-wrong-password-should-fail/error-context.md\n\n    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────\n    test-results/login.generated-valid-email-wrong-password-should-fail/trace.zip\n    Usage:\n\n        npx playwright show-trace test-results/login.generated-valid-email-wrong-password-should-fail/trace.zip\n\n    ────────────────────────────────────────────────────────────────────────────────────────────────\n\n  1 failed\n    generated-tests/login.generated.spec.js:11:1 › valid email + wrong password should fail ────────\n  1 passed (6.8s)\n",
+  "stderr": "",
+  "analysis": {
+    "isRealBug": true,
+    "bugSummaryJsonPath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/bug-summary.json",
+    "bugSummaryMdPath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/bug-summary.md",
+    "screenshotPath": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png",
+    "screenshotUrl": "https://raw.githubusercontent.com/ibne86/llm-qa-automation-pipeline/feature/github-actions-ci/artifacts/screenshots/1775412899851-login-with-wrong-password-does-not-display-error-message.png",
+    "screenshotRepoPath": "artifacts/screenshots/1775412899851-login-with-wrong-password-does-not-display-error-message.png",
+    "issueNumber": 7,
+    "issueUrl": "https://github.com/ibne86/llm-qa-automation-pipeline/issues/7",
+    "issueCreated": true,
+    "issueReason": ""
+  }
+}
