@@ -10,7 +10,8 @@
     "install:browsers": "npx playwright install chromium",
     "agent:run": "node scripts/run-agent.js",
     "agent:inspect": "node scripts/inspect-ui.js",
-    "agent:analyze": "node scripts/analyze-and-create-issue.js"
+    "agent:analyze": "node scripts/analyze-and-create-issue.js",
+    "agent:run:samples": "node scripts/run-sample-stories.js"
   },
   "dependencies": {
     "dotenv": "^17.4.0",

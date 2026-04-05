@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
 
-const APP_URL = "http://127.0.0.1:4173";
+const APP_URL = process.env.APP_URL || "http://127.0.0.1:4173";
 const SELECTOR_MAP_OUTPUT = path.resolve("reports", "selector-map.json");
 
 function getArg(flag) {
@@ -239,12 +239,17 @@ function validateGeneratedSpec(specText, story) {
 }
 
 async function runPlaywrightTest(projectRoot, specPath) {
-  const playwrightCmd = ".\\node_modules\\.bin\\playwright.cmd";
+  const playwrightCliPath = path.resolve(
+    projectRoot,
+    "node_modules",
+    "playwright",
+    "cli.js"
+  );
 
   try {
     const { stdout, stderr } = await execFile(
-      "cmd.exe",
-      ["/c", playwrightCmd, "test", "--config=playwright.config.js", specPath],
+      process.execPath,
+      [playwrightCliPath, "test", "--config=playwright.config.js", specPath],
       { cwd: projectRoot }
     );
 

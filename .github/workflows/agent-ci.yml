@@ -1,0 +1,105 @@
+name: Agent CI Pipeline
+
+on:
+  push:
+    paths-ignore:
+      - "reports/**"
+      - "playwright-report/**"
+      - "artifacts/screenshots/**"
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: agent-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-agent-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: http://127.0.0.1:4173
+      STORY_FILE: stories/samples/login-bug-regression.txt
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_OWNER: ${{ github.repository_owner }}
+      GITHUB_REPO: ${{ github.event.repository.name }}
+      GITHUB_UPLOAD_BRANCH: ${{ github.ref_name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: |
+          nohup npm run preview > preview.log 2>&1 &
+          echo $! > preview.pid
+
+      - name: Wait for app to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Preview server failed to start"
+          cat preview.log || true
+          exit 1
+
+      - name: Run agent against sample stories
+        run: npm run agent:run:samples
+
+      - name: Upload reports as workflow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-ci-artifacts
+          path: |
+            reports/history
+            reports/execution-result.json
+            reports/bug-summary.json
+            reports/bug-summary.md
+            playwright-report
+            test-results
+            preview.log
+          if-no-files-found: warn
+
+      - name: Commit report snapshots back to repository
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git add reports/history
+          if git diff --cached --quiet; then
+            echo "No report snapshot changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(ci): add agent report snapshots [skip ci]"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f preview.pid ]; then
+            kill $(cat preview.pid) || true
+          fi
