@@ -114,7 +114,7 @@ async function createGitHubIssue(summary) {
     "content-type": "application/json",
     authorization: `Bearer ${token}`,
     accept: "application/vnd.github+json",
-    "user-agent": "ai-test-agent",
+    "user-agent": "llm-qa-automation-pipeline",
     "X-GitHub-Api-Version": "2022-11-28",
   };
 

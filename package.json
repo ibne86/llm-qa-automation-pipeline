@@ -1,5 +1,5 @@
 {
-  "name": "ai-test-agent",
+  "name": "llm-qa-automation-pipeline",
   "version": "0.1.0",
   "private": true,
   "type": "module",
