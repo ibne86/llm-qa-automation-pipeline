@@ -1,4 +1,3 @@
-```gitignore
 node_modules/
 app/dist/
 playwright-report/
@@ -12,4 +11,3 @@ reports/*.md
 
 generated-tests/*.spec.js
 pages/LoginPage.js
-```
