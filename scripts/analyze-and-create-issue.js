@@ -43,12 +43,41 @@ function extractAttachmentPath(stdout, kind, extension) {
   return match ? match[1].trim() : "";
 }
 
+function clampSentences(text, maxSentences) {
+  const normalized = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "";
+
+  const sentences = normalized.match(/[^.!?]+[.!?]?/g) || [normalized];
+  return sentences.slice(0, maxSentences).join(" ").trim();
+}
+
+function normalizeBugSummary(analysis, screenshotPath) {
+  const summarySource =
+    analysis.summary ||
+    analysis.title ||
+    analysis.description ||
+    "Application behavior does not match the expected result.";
+
+  return {
+    ...analysis,
+    summary: clampSentences(summarySource, 1),
+    description: clampSentences(analysis.description, 3),
+    screenshot_path: screenshotPath || "",
+  };
+}
+
 function toMarkdown(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
 
   return `# ${summary.title}
+
+## Summary
+${summary.summary}
 
 ## Description
 ${summary.description}
@@ -75,7 +104,10 @@ function buildGitHubIssueBody(summary) {
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
 
-  return `## Description
+  return `## Summary
+${summary.summary}
+
+## Description
 ${summary.description}
 
 ## Severity
@@ -118,7 +150,6 @@ async function createGitHubIssue(summary) {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  // Preflight repo access check
   const repoCheck = await fetch(repoUrl, {
     method: "GET",
     headers,
@@ -178,6 +209,8 @@ async function main() {
   const storyPath = path.resolve(storyPathInput);
   const reportPath = path.resolve(reportPathInput);
   const projectRoot = process.cwd();
+  const issuePromptPath = path.resolve(projectRoot, "prompts", "create-github-issue.md");
+  const issuePromptTemplate = await fs.readFile(issuePromptPath, "utf8");
 
   const story = await fs.readFile(storyPath, "utf8");
   const report = JSON.parse(await fs.readFile(reportPath, "utf8"));
@@ -198,12 +231,12 @@ async function main() {
     : "";
 
   const systemPrompt = `
-You are a senior QA bug triage assistant.
+You are analyzing an automated test failure and preparing a GitHub issue when it is a real product bug.
 
 Decide whether the failure is a real product bug or not.
 
 Classify as a real bug when:
-- the generated tests executed successfully at the framework level
+- the tests executed successfully at the framework level
 - the failure is due to the application not meeting expected behavior
 - the failure is an assertion failure against expected business behavior
 
@@ -211,14 +244,19 @@ Do NOT classify as a real bug when the failure is due to:
 - import errors
 - missing files
 - invalid generated code
-- locator not found because of guessed selectors
+- locator problems caused by wrong selectors
 - Playwright runner or environment issues
-- process spawn or setup errors
+- setup or process errors
+
+Use the following issue-writing instructions exactly:
+
+${issuePromptTemplate}
 
 Return JSON only with this exact shape:
 {
   "is_real_bug": true,
   "title": "",
+  "summary": "",
   "description": "",
   "severity": "Low|Medium|High|Critical",
   "steps_to_reproduce": ["", "", "", ""],
@@ -274,13 +312,17 @@ Task:
   const analysisText = extractText(data.content);
   const analysis = extractJson(analysisText);
 
+  if (!analysis.summary) {
+    analysis.summary = analysis.title || analysis.description || "";
+  }
+
   const reportsDir = path.resolve(projectRoot, "reports");
   await fs.mkdir(reportsDir, { recursive: true });
 
-  const bugSummary = {
-    ...analysis,
-    screenshot_path: screenshotAbsolutePath || "",
-  };
+  const bugSummary = normalizeBugSummary(
+    analysis,
+    screenshotAbsolutePath || ""
+  );
 
   const bugSummaryJsonPath = path.resolve(reportsDir, "bug-summary.json");
   const bugSummaryMdPath = path.resolve(reportsDir, "bug-summary.md");
