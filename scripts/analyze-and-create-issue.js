@@ -417,7 +417,7 @@ async function createGitHubIssue(summary, report) {
   const token = (process.env.GITHUB_TOKEN || "").trim();
   const owner = (process.env.GITHUB_OWNER || "").trim();
   const repo = (process.env.GITHUB_REPO || "").trim();
-  const fingerprint = buildBugFingerprint({ summary, report });
+  const fingerprint = buildBugFingerprint({ summary });
 
   if (!token || !owner || !repo) {
     return {
@@ -660,7 +660,7 @@ Task:
   let issueResult = {
     created: false,
     reason: "No issue created",
-    fingerprint: buildBugFingerprint({ summary: bugSummary, report }),
+    fingerprint: buildBugFingerprint({ summary: bugSummary }),
   };
 
   if (bugSummary.is_real_bug) {
@@ -683,7 +683,7 @@ Task:
       duplicateIssue: issueResult.duplicate || false,
       bugFingerprint:
         issueResult.fingerprint ||
-        buildBugFingerprint({ summary: bugSummary, report }),
+        buildBugFingerprint({ summary: bugSummary }),
     },
   };
 
