@@ -3,6 +3,7 @@ dotenv.config({ override: true });
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 function getArg(flag) {
   const i = process.argv.indexOf(flag);
@@ -64,28 +65,33 @@ function normalizeBugSummary(analysis, screenshotPath) {
   return {
     ...analysis,
     summary: clampSentences(summarySource, 1),
-    description: clampSentences(analysis.description, 3),
+    severity: analysis.severity || "Medium",
+    steps_to_reproduce: Array.isArray(analysis.steps_to_reproduce)
+      ? analysis.steps_to_reproduce
+      : [],
+    expected_result: analysis.expected_result || "",
+    actual_result: analysis.actual_result || "",
     screenshot_path: screenshotPath || "",
   };
 }
 
 function slugify(text) {
-  return (
-    String(text || "screenshot")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "screenshot"
-  );
+  return String(text || "issue")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
 }
 
 async function getDefaultBranch(headers, owner, repo) {
   const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
-  const response = await fetch(repoUrl, { method: "GET", headers });
+  const response = await fetch(repoUrl, {
+    method: "GET",
+    headers,
+  });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to read repo info: ${response.status} ${errorText}`);
+    throw new Error(`Unable to determine default branch: ${response.status}`);
   }
 
   const data = await response.json();
@@ -101,22 +107,19 @@ async function uploadFileToRepo({
   commitMessage,
   branch,
 }) {
-  const fileBuffer = await fs.readFile(absoluteFilePath);
-  const contentBase64 = fileBuffer.toString("base64");
+  const contentBuffer = await fs.readFile(absoluteFilePath);
+  const contentBase64 = contentBuffer.toString("base64");
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(repoPath).replace(/%2F/g, "/")}`;
 
-  const headers = {
-    "content-type": "application/json",
-    authorization: `Bearer ${token}`,
-    accept: "application/vnd.github+json",
-    "user-agent": "llm-qa-automation-pipeline",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-
-  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${repoPath}`;
-
-  const response = await fetch(apiUrl, {
+  const response = await fetch(url, {
     method: "PUT",
-    headers,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/vnd.github+json",
+      "content-type": "application/json",
+      "user-agent": "llm-qa-automation-pipeline",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
     body: JSON.stringify({
       message: commitMessage,
       content: contentBase64,
@@ -155,7 +158,9 @@ async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  const branch = (process.env.GITHUB_UPLOAD_BRANCH || process.env.GITHUB_REF_NAME || "").trim() || await getDefaultBranch(headers, owner, repo);
+  const branch =
+    (process.env.GITHUB_UPLOAD_BRANCH || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "").trim() ||
+    await getDefaultBranch(headers, owner, repo);
   const ext = path.extname(screenshotAbsolutePath) || ".png";
   const fileName = `${Date.now()}-${slugify(summary.title)}${ext}`;
   const repoPath = `artifacts/screenshots/${fileName}`;
@@ -171,99 +176,157 @@ async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
   });
 }
 
+function normalizeFingerprintPart(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildBugFingerprint(summary) {
+  const rawFingerprint = [
+    normalizeFingerprintPart(summary.title),
+    normalizeFingerprintPart(summary.summary),
+    normalizeFingerprintPart(summary.expected_result),
+    normalizeFingerprintPart(summary.actual_result),
+  ].join(" | ");
+
+  return createHash("sha256").update(rawFingerprint).digest("hex").slice(0, 24);
+}
+
+function getSourceContext() {
+  const branch =
+    process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "local";
+  const sha = process.env.GITHUB_SHA || "local";
+  const repository = process.env.GITHUB_REPOSITORY || "local";
+  const runId = process.env.GITHUB_RUN_ID || "";
+  const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
+  const runUrl = runId && repository
+    ? `${serverUrl}/${repository}/actions/runs/${runId}`
+    : "";
+
+  return {
+    branch,
+    sha,
+    repository,
+    runUrl,
+  };
+}
+
+function buildFingerprintMarker(fingerprint) {
+  return `<!-- bug-fingerprint:${fingerprint} -->`;
+}
+
 function toMarkdown(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
 
   const attachmentSection = summary.screenshot_url
-    ? `## Attachment
-![Failure screenshot](${summary.screenshot_url})
-
-[Open screenshot](${summary.screenshot_url})`
+    ? `## Attachment\n![Failure screenshot](${summary.screenshot_url})\n\n[Open screenshot](${summary.screenshot_url})`
     : summary.screenshot_path
-      ? `## Attachment
-- Screenshot path: \`${summary.screenshot_path}\``
-      : `## Attachment
-- Screenshot: not available`;
+      ? `## Attachment\n- Screenshot path: \`${summary.screenshot_path}\``
+      : `## Attachment\n- Screenshot: not available`;
 
-  return `# ${summary.title}
-
-## Summary
-${summary.summary}
-
-## Description
-${summary.description}
-
-## Severity
-${summary.severity}
-
-## Steps to reproduce
-${steps}
-
-## Expected result
-${summary.expected_result}
-
-## Actual result
-${summary.actual_result}
-
-${attachmentSection}
-`;
+  return `# ${summary.title}\n\n## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n${attachmentSection}\n`;
 }
 
-function buildGitHubIssueBody(summary) {
+function buildGitHubIssueBody(summary, fingerprint) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
 
   const attachmentSection = summary.screenshot_url
-    ? `## Attachment
-![Failure screenshot](${summary.screenshot_url})
-
-[Open screenshot](${summary.screenshot_url})`
+    ? `## Attachment\n![Failure screenshot](${summary.screenshot_url})\n\n[Open screenshot](${summary.screenshot_url})`
     : summary.screenshot_path
-      ? `## Attachment
-- Screenshot path: \`${summary.screenshot_path}\``
-      : `## Attachment
-- Screenshot: not available`;
+      ? `## Attachment\n- Screenshot path: \`${summary.screenshot_path}\``
+      : `## Attachment\n- Screenshot: not available`;
 
-  return `## Summary
-${summary.summary}
+  const source = getSourceContext();
+  const runSection = source.runUrl
+    ? `- Workflow run: ${source.runUrl}`
+    : "- Workflow run: not available";
 
-## Description
-${summary.description}
+  return `## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n## CI Context\n- Branch: ${source.branch}\n- Commit: ${source.sha}\n${runSection}\n\n${attachmentSection}\n\n${buildFingerprintMarker(fingerprint)}\n`;
+}
 
-## Severity
-${summary.severity}
+async function findExistingOpenIssueByFingerprint({ owner, repo, token, fingerprint }) {
+  const query = encodeURIComponent(
+    `repo:${owner}/${repo} is:issue is:open in:body "bug-fingerprint:${fingerprint}"`
+  );
+  const url = `https://api.github.com/search/issues?q=${query}`;
 
-## Steps to reproduce
-${steps}
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/vnd.github+json",
+      "user-agent": "llm-qa-automation-pipeline",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
 
-## Expected result
-${summary.expected_result}
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`GitHub issue search failed: ${response.status} ${errorText}`);
+  }
 
-## Actual result
-${summary.actual_result}
+  const data = await response.json();
+  const existing = Array.isArray(data.items) ? data.items[0] : null;
 
-${attachmentSection}
-`;
+  if (!existing) {
+    return null;
+  }
+
+  return {
+    issueNumber: existing.number,
+    issueUrl: existing.html_url,
+    title: existing.title,
+  };
 }
 
 async function createGitHubIssue(summary) {
   const token = (process.env.GITHUB_TOKEN || "").trim();
   const owner = (process.env.GITHUB_OWNER || "").trim();
   const repo = (process.env.GITHUB_REPO || "").trim();
+  const fingerprint = buildBugFingerprint(summary);
 
   if (!token || !owner || !repo) {
     return {
       created: false,
+      fingerprint,
       reason: "Missing GITHUB_TOKEN, GITHUB_OWNER, or GITHUB_REPO",
     };
   }
 
-  const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
-  const issueUrl = `${repoUrl}/issues`;
+  try {
+    const existingIssue = await findExistingOpenIssueByFingerprint({
+      owner,
+      repo,
+      token,
+      fingerprint,
+    });
 
+    if (existingIssue) {
+      return {
+        created: false,
+        fingerprint,
+        duplicate: true,
+        issueNumber: existingIssue.issueNumber,
+        issueUrl: existingIssue.issueUrl,
+        reason: `Matching open issue already exists: #${existingIssue.issueNumber}`,
+      };
+    }
+  } catch (error) {
+    return {
+      created: false,
+      fingerprint,
+      reason: error.message,
+    };
+  }
+
+  const issueUrl = `https://api.github.com/repos/${owner}/${repo}/issues`;
   const headers = {
     "content-type": "application/json",
     authorization: `Bearer ${token}`,
@@ -272,25 +335,12 @@ async function createGitHubIssue(summary) {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  const repoCheck = await fetch(repoUrl, {
-    method: "GET",
-    headers,
-  });
-
-  if (!repoCheck.ok) {
-    const repoErrorText = await repoCheck.text();
-    return {
-      created: false,
-      reason: `GitHub repo access check failed: ${repoCheck.status} ${repoErrorText}`,
-    };
-  }
-
   const response = await fetch(issueUrl, {
     method: "POST",
     headers,
     body: JSON.stringify({
       title: summary.title,
-      body: buildGitHubIssueBody(summary),
+      body: buildGitHubIssueBody(summary, fingerprint),
     }),
   });
 
@@ -298,6 +348,7 @@ async function createGitHubIssue(summary) {
     const errorText = await response.text();
     return {
       created: false,
+      fingerprint,
       reason: `GitHub issue creation failed: ${response.status} ${errorText}`,
     };
   }
@@ -306,6 +357,7 @@ async function createGitHubIssue(summary) {
 
   return {
     created: true,
+    fingerprint,
     issueNumber: data.number,
     issueUrl: data.html_url,
   };
@@ -480,6 +532,7 @@ Task:
   let issueResult = {
     created: false,
     reason: "No issue created",
+    fingerprint: buildBugFingerprint(bugSummary),
   };
 
   if (bugSummary.is_real_bug) {
@@ -499,6 +552,8 @@ Task:
       issueUrl: issueResult.issueUrl || "",
       issueCreated: issueResult.created || false,
       issueReason: issueResult.reason || "",
+      duplicateIssue: issueResult.duplicate || false,
+      bugFingerprint: issueResult.fingerprint || buildBugFingerprint(bugSummary),
     },
   };
 
@@ -520,7 +575,7 @@ Task:
   console.log(`Execution report updated: ${reportPath}`);
 }
 
-main().catch((err) => {
-  console.error(err.message);
+main().catch((error) => {
+  console.error(error.message);
   process.exitCode = 1;
 });
