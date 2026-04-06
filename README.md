@@ -136,8 +136,10 @@ The project uses a cleaner split between smoke and regression coverage.
 
 This keeps the suite cleaner and reduces noisy duplicate bug reports.
 
+**Duplicate-Issue Control** helps keep bug reporting clean by preventing the same underlying defect from being posted repeatedly across different workflow runs.
+
 <details>
-<summary><b>Duplicate-Issue Control — Quality signal for recruiters</b></summary>
+<summary><b>Duplicate-Issue Control</b></summary>
 
 This project includes **duplicate-issue control**, which is an important quality feature in the pipeline.
 
@@ -149,13 +151,13 @@ It shows that the workflow does not just detect bugs — it also avoids creating
 - shows the pipeline is automation-aware, not just automation-heavy
 - demonstrates more realistic CI/CD behavior
 
-**How duplicate detection works**
+**How Duplicate Detection Works**
 - hidden fingerprint markers in issue bodies
 - stable failure markers
 - normalized title matching
 - normalized expected and actual behavior matching
 
-**Where it matters**
+**Where It Matters**
 - a feature branch `push`
 - a `pull_request` validation run
 - a `push` to `main`
