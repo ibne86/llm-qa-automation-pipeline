@@ -248,17 +248,20 @@ function extractStableFailureSignal(report) {
   return normalizeDedupeText(lines.slice(0, 3).join(" | "));
 }
 
-function buildBugFingerprint({ summary }) {
+function buildBugFingerprint({ summary, report }) {
   const expected = normalizeDedupeText(summary?.expected_result);
   const actual = normalizeDedupeText(summary?.actual_result);
+  const stableFailureSignal = extractStableFailureSignal(report);
 
-  const stableBugKey = [
-    "scope:login",
-    expected && `expected:${expected}`,
-    actual && `actual:${actual}`,
-  ]
-    .filter(Boolean)
-    .join("|");
+  const stableBugKey = stableFailureSignal
+    ? ["scope:login", `signal:${stableFailureSignal}`].join("|")
+    : [
+        "scope:login",
+        expected && `expected:${expected}`,
+        actual && `actual:${actual}`,
+      ]
+        .filter(Boolean)
+        .join("|");
 
   return createHash("sha256")
     .update(stableBugKey || "generic-bug")
@@ -300,12 +303,88 @@ function normalizeIssueText(value) {
     .trim();
 }
 
-function shouldCreateGitHubIssues() {
-  const raw = String(process.env.ENABLE_GITHUB_ISSUES || "true")
-    .trim()
-    .toLowerCase();
+function normalizeSemanticText(value) {
+  return normalizeIssueText(value)
+    .replace(/\bdisplay(?:ed)?\b/g, "show")
+    .replace(/\bshown\b/g, "show")
+    .replace(/\bvisible\b/g, "show")
+    .replace(/\bcorrect\b/g, "valid")
+    .replace(/\bincorrect\b/g, "wrong")
+    .replace(/\bentered\b/g, "use")
+    .replace(/\bused\b/g, "use")
+    .replace(/\belements\b/g, "element")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  return !["false", "0", "no", "off"].includes(raw);
+function tokenizeSemanticText(value) {
+  const stopwords = new Set([
+    "a",
+    "an",
+    "and",
+    "after",
+    "against",
+    "at",
+    "be",
+    "by",
+    "does",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "must",
+    "no",
+    "not",
+    "of",
+    "on",
+    "or",
+    "the",
+    "then",
+    "to",
+    "when",
+    "with",
+  ]);
+
+  return normalizeSemanticText(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token && !stopwords.has(token));
+}
+
+function overlapScore(left, right) {
+  const leftTokens = new Set(tokenizeSemanticText(left));
+  const rightTokens = new Set(tokenizeSemanticText(right));
+
+  if (leftTokens.size === 0 || rightTokens.size === 0) {
+    return 0;
+  }
+
+  let intersection = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  return (2 * intersection) / (leftTokens.size + rightTokens.size);
+}
+
+function buildStableFailureMarker(stableFailureSignal) {
+  if (!stableFailureSignal) return "";
+
+  const hash = createHash("sha256")
+    .update(stableFailureSignal)
+    .digest("hex")
+    .slice(0, 24);
+
+  return `<!-- stable-failure:${hash} -->`;
+}
+
+function shouldCreateGitHubIssues() {
+  return String(process.env.ENABLE_GITHUB_ISSUES || "true")
+    .trim()
+    .toLowerCase() !== "false";
 }
 
 function toMarkdown(summary) {
@@ -322,7 +401,7 @@ function toMarkdown(summary) {
   return `# ${summary.title}\n\n## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n${attachmentSection}\n`;
 }
 
-function buildGitHubIssueBody(summary, fingerprint) {
+function buildGitHubIssueBody(summary, fingerprint, report) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
     .join("\n");
@@ -337,8 +416,10 @@ function buildGitHubIssueBody(summary, fingerprint) {
   const runSection = source.runUrl
     ? `- Workflow run: ${source.runUrl}`
     : "- Workflow run: not available";
+  const stableFailureSignal = extractStableFailureSignal(report);
+  const stableFailureMarker = buildStableFailureMarker(stableFailureSignal);
 
-  return `## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n## CI Context\n- Branch: ${source.branch}\n- Commit: ${source.sha}\n${runSection}\n\n${attachmentSection}\n\n${buildFingerprintMarker(fingerprint)}\n`;
+  return `## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n## CI Context\n- Branch: ${source.branch}\n- Commit: ${source.sha}\n${runSection}\n\n${attachmentSection}\n\n${buildFingerprintMarker(fingerprint)}\n${stableFailureMarker}\n`;
 }
 
 async function fetchOpenIssues({ owner, repo, token, maxPages = 5 }) {
@@ -383,23 +464,32 @@ async function findExistingOpenIssue({
   token,
   fingerprint,
   summary,
+  report,
 }) {
   const marker = buildFingerprintMarker(fingerprint);
+  const stableFailureSignal = extractStableFailureSignal(report);
+  const stableFailureMarker = buildStableFailureMarker(stableFailureSignal);
   const issues = await fetchOpenIssues({ owner, repo, token });
 
   const normalizedTitle = normalizeIssueText(summary?.title);
   const normalizedExpected = normalizeIssueText(summary?.expected_result);
   const normalizedActual = normalizeIssueText(summary?.actual_result);
+  const behaviorText = `${summary?.expected_result || ""} ${summary?.actual_result || ""}`;
 
   const existing = issues.find((issue) => {
+    const rawIssueBody = String(issue.body || "");
     const issueTitle = normalizeIssueText(issue.title || "");
-    const issueBody = normalizeIssueText(issue.body || "");
+    const issueBody = normalizeIssueText(rawIssueBody);
 
-    const fingerprintMatch = String(issue.body || "").includes(marker);
+    const fingerprintMatch = rawIssueBody.includes(marker);
+    const stableFailureMatch =
+      stableFailureMarker && rawIssueBody.includes(stableFailureMarker);
 
     const titleMatch =
       normalizedTitle &&
       issueTitle === normalizedTitle;
+    const fuzzyTitleMatch =
+      overlapScore(issue.title || "", summary?.title || "") >= 0.8;
 
     const bodyBehaviorMatch =
       normalizedExpected &&
@@ -407,7 +497,17 @@ async function findExistingOpenIssue({
       issueBody.includes(normalizedExpected) &&
       issueBody.includes(normalizedActual);
 
-    return fingerprintMatch || titleMatch || bodyBehaviorMatch;
+    const fuzzyBehaviorMatch =
+      overlapScore(issue.body || "", behaviorText) >= 0.72;
+
+    return (
+      fingerprintMatch ||
+      stableFailureMatch ||
+      titleMatch ||
+      fuzzyTitleMatch ||
+      bodyBehaviorMatch ||
+      fuzzyBehaviorMatch
+    );
   });
 
   if (!existing) {
@@ -425,7 +525,15 @@ async function createGitHubIssue(summary, report) {
   const token = (process.env.GITHUB_TOKEN || "").trim();
   const owner = (process.env.GITHUB_OWNER || "").trim();
   const repo = (process.env.GITHUB_REPO || "").trim();
-  const fingerprint = buildBugFingerprint({ summary });
+  const fingerprint = buildBugFingerprint({ summary, report });
+
+  if (!shouldCreateGitHubIssues()) {
+    return {
+      created: false,
+      fingerprint,
+      reason: "GitHub issue creation disabled for this workflow run",
+    };
+  }
 
   if (!token || !owner || !repo) {
     return {
@@ -437,12 +545,13 @@ async function createGitHubIssue(summary, report) {
 
   try {
     const existingIssue = await findExistingOpenIssue({
-  owner,
-  repo,
-  token,
-  fingerprint,
-  summary,
-});
+      owner,
+      repo,
+      token,
+      fingerprint,
+      summary,
+      report,
+    });
 
     if (existingIssue) {
       return {
@@ -476,7 +585,7 @@ async function createGitHubIssue(summary, report) {
     headers,
     body: JSON.stringify({
       title: summary.title,
-      body: buildGitHubIssueBody(summary, fingerprint),
+      body: buildGitHubIssueBody(summary, fingerprint, report),
     }),
   });
 
@@ -668,20 +777,11 @@ Task:
   let issueResult = {
     created: false,
     reason: "No issue created",
-    fingerprint: buildBugFingerprint({ summary: bugSummary }),
+    fingerprint: buildBugFingerprint({ summary: bugSummary, report }),
   };
 
   if (bugSummary.is_real_bug) {
-    if (shouldCreateGitHubIssues()) {
-      issueResult = await createGitHubIssue(bugSummary, report);
-    } else {
-      issueResult = {
-        created: false,
-        duplicate: false,
-        fingerprint: buildBugFingerprint({ summary: bugSummary }),
-        reason: "GitHub issue creation is disabled for this run.",
-      };
-    }
+    issueResult = await createGitHubIssue(bugSummary, report);
   }
 
   const updatedReport = {
@@ -700,7 +800,7 @@ Task:
       duplicateIssue: issueResult.duplicate || false,
       bugFingerprint:
         issueResult.fingerprint ||
-        buildBugFingerprint({ summary: bugSummary }),
+        buildBugFingerprint({ summary: bugSummary, report }),
     },
   };
 
