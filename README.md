@@ -1,29 +1,31 @@
 <h1 align="center">🤖 LLM-Assisted QA Automation Pipeline</h1>
-<p align="center"><b>An AI-assisted QA workflow that turns text stories into Playwright tests, runs them, analyzes failures, and uses GitHub Actions to validate changes and open GitHub issues for real bugs.</b></p>
+<p align="center"><b>An AI-assisted QA workflow that turns text stories into Playwright tests, runs them, analyzes failures, and opens GitHub issues for real bugs.</b></p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Claude-API-blueviolet?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Playwright-CLI-2ea44f?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/GitHub-Actions-black?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/GitHub-REST_API-24292f?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/GitHub-REST_API-black?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/CI-Hybrid_Issue_Policy-blue?style=for-the-badge" />
 </p>
 
 ---
 
 ## 📌 Overview
 
-This repository demonstrates an **AI-assisted QA automation pipeline** built around a demo login application with an intentional bug.
+This repository demonstrates an **AI-assisted QA automation pipeline** built around a simple demo login application.
 
-The project combines:
+The pipeline:
 
-- **Claude API** for test generation
-- **Playwright** for browser automation and execution
-- **GitHub Actions** for CI/CD orchestration
-- **GitHub REST API** for automated issue creation
+- reads a story from a text file
+- inspects the UI to build selector context
+- uses **Claude API** to generate a Playwright test
+- runs the generated test with **Playwright CLI**
+- analyzes failures with **Claude API**
+- creates a **GitHub issue via REST API** for valid bugs
 
 ---
 
-## 🏗️ End-to-End Architecture
+## 🏗️ Architecture at a Glance
 
 ```text
 Story file
@@ -36,17 +38,17 @@ Claude API generates Playwright test code
    ↓
 Generated test is written locally
    ↓
-Playwright executes the test
+Playwright CLI executes the test
    ↓
-Execution result is saved to reports/
+Execution report is saved to reports/
    ↓
 scripts/analyze-and-create-issue.js analyzes the result
    ↓
 Claude decides whether it is a real bug
    ↓
-GitHub issue is created when workflow policy allows it
+GitHub REST API creates an issue when allowed
    ↓
-GitHub Actions controls when each of these steps runs in CI/CD
+reports/ gets updated
 ```
 
 ---
@@ -55,75 +57,53 @@ GitHub Actions controls when each of these steps runs in CI/CD
 
 - AI-assisted Playwright test generation from text stories
 - UI inspection and selector discovery
-- automated browser test execution
+- automated test execution with Playwright
 - AI-assisted failure analysis
 - GitHub issue creation for confirmed bugs
-- **GitHub Actions based CI/CD workflow design**
+- a practical CI workflow with separate smoke and regression behavior
 - duplicate-issue control across push, PR, and main runs
 
 ---
 
-## ⚙️ GitHub Actions / CI-CD Workflow
+## ✅ Current Workflow Behavior
 
-This project uses **GitHub Actions** as its CI/CD pipeline.
+This project now follows a **hybrid issue creation policy**:
 
-Workflow file:
+### Feature branch push
+- smoke workflow runs
+- **can create a GitHub issue**
+- useful for catching new bugs early
 
-- `.github/workflows/agent-ci.yml`
+### Pull request run
+- workflow runs for validation
+- **does not create GitHub issues**
+- prevents push + PR duplicate issue creation
 
-GitHub Actions is responsible for:
+### Push to `main`
+- full regression workflow runs
+- **can create GitHub issues**
+- used as the final automated regression gate
 
-- installing dependencies
-- starting the demo app
-- running smoke or regression stories
-- saving reports and artifacts
-- allowing or blocking GitHub issue creation depending on the event type
-
-### Trigger behavior
-
-#### 1. Push to feature branch
-- GitHub Actions runs the **smoke pipeline**
-- this run **can create a GitHub issue** for a real new bug
-- useful for early feedback during development
-
-#### 2. Pull request
-- GitHub Actions runs validation again
-- this run **does not create GitHub issues**
-- this prevents duplicate issue creation from both `push` and `pull_request`
-
-#### 3. Push to `main`
-- GitHub Actions runs the **full regression pipeline**
-- this run **can create GitHub issues**
-- this acts as the final CI regression check after merge
-
-### In simple terms
+In simple terms:
 
 ```text
-feature branch push → smoke run → issue creation allowed
-pull request        → validation run → no issue creation
-main push           → regression run → issue creation allowed
+feature push  → test + issue creation allowed
+pull request  → test only
+main push      → regression + issue creation allowed
 ```
 
 ---
 
-## 🧠 Duplicate-Issue Control
+## 🧠 Duplicate Issue Strategy
 
-The project includes duplicate protection so the same bug is less likely to be reported multiple times.
+The project is designed to reduce duplicate bug reports by using multiple signals during issue creation, including:
 
-It uses multiple signals such as:
-
-- hidden fingerprint markers in issue bodies
+- hidden fingerprint markers
 - stable failure markers
 - normalized title matching
-- normalized expected/actual behavior matching
+- normalized expected/actual behavior comparison
 
-This is important because the same underlying bug can appear:
-
-- on a feature branch push
-- again in a PR validation run
-- again after merge to `main`
-
-The CI/CD policy and dedupe logic work together to reduce that noise.
+This helps the pipeline avoid reopening the same bug when it appears again in later runs.
 
 ---
 
@@ -134,8 +114,8 @@ The CI/CD policy and dedupe logic work together to reduce that noise.
 | `scripts/run-agent.js` | Main orchestration flow: reads the story, generates test code, runs Playwright, and hands off for analysis |
 | `scripts/inspect-ui.js` | Inspects the running app and builds selector context |
 | `scripts/analyze-and-create-issue.js` | Analyzes execution results and creates GitHub issues when allowed |
-| `.github/workflows/agent-ci.yml` | **GitHub Actions CI/CD workflow** for smoke and regression runs |
-| `stories/smoke/` | Smoke stories used on feature branch pushes |
+| `.github/workflows/agent-ci.yml` | GitHub Actions workflow for smoke and regression runs |
+| `stories/smoke/` | Smoke stories used on feature branch pushes and validation runs |
 | `stories/regression/` | Regression stories used in the main regression workflow |
 | `reports/` | Execution results, analysis outputs, selector maps, and runtime artifacts |
 | `app/` | Demo login app with an intentional bug |
@@ -157,7 +137,7 @@ This intentional defect is used to demonstrate:
 - story-driven test generation
 - bug detection through execution
 - AI-assisted failure analysis
-- automated GitHub issue creation through CI/CD
+- automated GitHub issue creation
 
 ---
 
@@ -169,9 +149,9 @@ The project uses a cleaner story split:
 A single canonical login smoke scenario covers the core login flow.
 
 ### Regression story
-The regression story covers a different validation path, such as incomplete credentials, instead of duplicating the same wrong-password scenario.
+The regression story is used for a different validation path, such as incomplete credentials, instead of duplicating the same wrong-password case.
 
-This keeps the test suite cleaner and reduces noisy duplicate bug reports.
+This keeps the suite cleaner and reduces duplicate bug reporting from overlapping stories.
 
 ---
 
@@ -200,7 +180,7 @@ llm-qa-automation-pipeline/
 
 ---
 
-## ⚙️ Local Setup
+## ⚙️ Setup
 
 ### 1. Install dependencies
 
@@ -215,16 +195,14 @@ npm run install:browsers
 npm run dev
 ```
 
-### 3. Configure required environment variables
+### 3. Make sure environment variables are configured
 
-For local runs and GitHub issue creation, configure:
+You will need the required secrets or environment variables for the flows you want to use, such as:
 
 - `ANTHROPIC_API_KEY`
 - `GITHUB_TOKEN`
 - `GITHUB_OWNER`
 - `GITHUB_REPO`
-
-For GitHub Actions, secrets are configured in the GitHub repository.
 
 ---
 
@@ -259,7 +237,7 @@ Failure is indicated by the message: "Invalid email or password."
 
 ## 🚀 Useful Commands
 
-### Run the main agent flow locally
+### Run the main agent flow
 
 ```bash
 npm run agent:run -- --story "C:\path\to\your\story.txt"
@@ -279,26 +257,26 @@ npm run agent:analyze -- --story "C:\path\to\your\story.txt" --report ".\reports
 
 ---
 
-## 🔁 Git + GitHub Actions Workflow
+## 🔁 Git Workflow for This Project
 
-Typical development flow:
+A practical flow for working with this repo:
 
 ```text
 make changes locally
 ↓
-create feature branch
+create a feature branch
 ↓
 push branch to GitHub
 ↓
-GitHub Actions smoke run starts
+smoke workflow runs
 ↓
 open pull request
 ↓
-GitHub Actions PR validation run starts
+PR workflow validates changes without creating issues
 ↓
 merge to main
 ↓
-GitHub Actions full regression run starts
+main regression workflow runs
 ```
 
 Typical commands:
@@ -312,26 +290,20 @@ git push -u origin feature/hybrid-issue-dedupe-fix
 
 ---
 
-## 📊 Example CI/CD Flow
+## 📊 Example End-to-End Flow
 
 ```text
-Push to feature branch
+Story file
 ↓
-GitHub Actions smoke run
+AI generates Playwright test
 ↓
-Bug found
+Playwright runs test
 ↓
-Claude analyzes the failure
+Failure is captured in reports/
 ↓
-If it is a real bug, GitHub issue can be created
+AI analyzes whether it is a real bug
 ↓
-Open PR
-↓
-GitHub Actions validates again without creating issue
-↓
-Merge to main
-↓
-GitHub Actions full regression run checks again without reopening the same bug unnecessarily
+If allowed by workflow policy, GitHub issue is created
 ```
 
 ---
@@ -341,7 +313,6 @@ GitHub Actions full regression run checks again without reopening the same bug u
 - runtime artifacts in `reports/` should usually stay out of version control except intentional placeholders
 - feature branch push and main runs may both detect the same real bug, so duplicate control matters
 - PR runs are intentionally validation-only to reduce noise
-- GitHub Actions is a core part of this project, not an optional add-on
 
 ---
 
@@ -349,7 +320,7 @@ GitHub Actions full regression run checks again without reopening the same bug u
 
 This project is not just a test generator.
 
-It is a compact demonstration of how AI can assist QA automation across the full loop:
+It is a compact demo of how AI can assist QA automation across the full loop:
 
 - story input
 - UI understanding
@@ -357,4 +328,4 @@ It is a compact demonstration of how AI can assist QA automation across the full
 - execution
 - failure analysis
 - issue creation
-- **GitHub Actions based CI/CD orchestration**
+- CI workflow design
