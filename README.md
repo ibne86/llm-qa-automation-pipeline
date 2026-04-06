@@ -84,14 +84,14 @@ This project uses **GitHub Actions** as its CI/CD pipeline.
 **Workflow file**
 - `.github/workflows/agent-ci.yml`
 
-**GitHub Actions handles:**
-- installing dependencies
-- starting the demo app
-- running smoke or regression stories
-- saving reports and artifacts
-- allowing or blocking GitHub issue creation based on event type
+**GitHub Actions Handles:**
+- Installing dependencies
+- Starting the demo app
+- Running smoke or regression stories
+- Saving reports and artifacts
+- Allowing or blocking GitHub issue creation based on event type
 
-### Trigger behavior
+### Trigger Behavior
 
 | Event | Pipeline | Issue creation | Purpose |
 |---|---|---:|---|
@@ -136,12 +136,10 @@ The project uses a cleaner split between smoke and regression coverage.
 
 This keeps the suite cleaner and reduces noisy duplicate bug reports.
 
+Duplicate-Issue Control helps keep bug reporting clean by preventing the same underlying defect from being posted repeatedly across different workflow runs.
+
 <details>
-<summary><b>Duplicate-Issue Control — Quality signal for recruiters</b></summary>
-
-This project includes **duplicate-issue control**, which is an important quality feature in the pipeline.
-
-It shows that the workflow does not just detect bugs — it also avoids creating the same GitHub issue repeatedly across feature branch pushes, pull requests, and `main` runs.
+<summary><b>🛡️ Duplicate-Issue Control</b></summary>
 
 **Why This Adds Quality**
 - reduces noisy duplicate issues
