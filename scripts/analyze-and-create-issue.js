@@ -290,6 +290,16 @@ function buildFingerprintMarker(fingerprint) {
   return `<!-- bug-fingerprint:${fingerprint} -->`;
 }
 
+function normalizeIssueText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[`"'()[\]{}]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function toMarkdown(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
@@ -359,13 +369,38 @@ async function fetchOpenIssues({ owner, repo, token, maxPages = 5 }) {
   return allIssues;
 }
 
-async function findExistingOpenIssueByFingerprint({ owner, repo, token, fingerprint }) {
+async function findExistingOpenIssue({
+  owner,
+  repo,
+  token,
+  fingerprint,
+  summary,
+}) {
   const marker = buildFingerprintMarker(fingerprint);
   const issues = await fetchOpenIssues({ owner, repo, token });
 
-  const existing = issues.find((issue) =>
-    String(issue.body || "").includes(marker)
-  );
+  const normalizedTitle = normalizeIssueText(summary?.title);
+  const normalizedExpected = normalizeIssueText(summary?.expected_result);
+  const normalizedActual = normalizeIssueText(summary?.actual_result);
+
+  const existing = issues.find((issue) => {
+    const issueTitle = normalizeIssueText(issue.title || "");
+    const issueBody = normalizeIssueText(issue.body || "");
+
+    const fingerprintMatch = String(issue.body || "").includes(marker);
+
+    const titleMatch =
+      normalizedTitle &&
+      issueTitle === normalizedTitle;
+
+    const bodyBehaviorMatch =
+      normalizedExpected &&
+      normalizedActual &&
+      issueBody.includes(normalizedExpected) &&
+      issueBody.includes(normalizedActual);
+
+    return fingerprintMatch || titleMatch || bodyBehaviorMatch;
+  });
 
   if (!existing) {
     return null;
@@ -393,12 +428,13 @@ async function createGitHubIssue(summary, report) {
   }
 
   try {
-    const existingIssue = await findExistingOpenIssueByFingerprint({
-      owner,
-      repo,
-      token,
-      fingerprint,
-    });
+    const existingIssue = await findExistingOpenIssue({
+  owner,
+  repo,
+  token,
+  fingerprint,
+  summary,
+});
 
     if (existingIssue) {
       return {
