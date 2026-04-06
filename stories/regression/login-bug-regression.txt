@@ -1,13 +1,14 @@
-Title: Login bug regression sample
+Title: Login validation regression
 
-As a returning user,
-I want to sign in with my registered email and password,
-so that I can access my account securely.
+The login screen should reject incomplete credentials consistently.
 
-Acceptance criteria:
+Required values:
 - valid email: test@demo.com
 - valid password: Password123
 - Success is indicated by the message: "Login successful. Welcome back."
 - Failure is indicated by the message: "Invalid email or password."
-- A login attempt with the correct email and a wrong password must fail.
-- A login attempt with the correct email and the correct password must succeed.
+
+Expected behavior:
+- Empty email + valid password should fail.
+- Valid email + empty password should fail.
+- Empty email + empty password should fail.
