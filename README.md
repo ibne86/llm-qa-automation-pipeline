@@ -1,52 +1,72 @@
 <h1 align="center">🤖 LLM-Assisted QA Automation Pipeline</h1>
-<p align="center"><b>An AI-assisted QA workflow that turns text stories into Playwright tests, runs them, analyzes failures, and uses GitHub Actions to validate changes and open GitHub issues for real bugs.</b></p>
+<p align="center"><b>AI-assisted Playwright generation, execution, failure analysis, and GitHub issue creation — orchestrated with GitHub Actions.</b></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Claude-API-blueviolet?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Playwright-CLI-2ea44f?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/GitHub-Actions-black?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/GitHub-REST_API-24292f?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Claude-API-8A2BE2?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Playwright-Automation-2ea44f?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/GitHub-Actions-2088FF?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/GitHub-Issues-24292F?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Node.js-Workflow-339933?style=for-the-badge" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Working-success?style=flat-square" />
+  <img src="https://img.shields.io/badge/CI-GitHub_Actions-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/Demo_App-Intentional_Login_Bug-orange?style=flat-square" />
+  <img src="https://img.shields.io/badge/Test_Strategy-Smoke_%2B_Regression-informational?style=flat-square" />
 </p>
 
 ---
 
-## 📌 Overview
+## ✨ Overview
 
 This repository demonstrates an **AI-assisted QA automation pipeline** built around a demo login application with an intentional bug.
 
-The project combines:
+It combines:
 
-- **Claude API** for test generation
-- **Playwright** for browser automation and execution
+- **Claude API** for generating and analyzing test logic
+- **Playwright** for browser automation and test execution
 - **GitHub Actions** for CI/CD orchestration
 - **GitHub REST API** for automated issue creation
 
+> [!IMPORTANT]
+> This is not just a test generator. It demonstrates an end-to-end QA flow: **story → inspection → generation → execution → analysis → issue creation → CI/CD validation**.
+
 ---
 
-## 🏗️ End-to-End Architecture
+## 🏗️ Pipeline Architecture
 
 ```text
-Story file
-   ↓
-scripts/run-agent.js reads the story
-   ↓
-UI inspection builds selector context
-   ↓
-Claude API generates Playwright test code
-   ↓
-Generated test is written locally
-   ↓
-Playwright executes the test
-   ↓
-Execution result is saved to reports/
-   ↓
-scripts/analyze-and-create-issue.js analyzes the result
-   ↓
-Claude decides whether it is a real bug
-   ↓
-GitHub issue is created when workflow policy allows it
-   ↓
-GitHub Actions controls when each of these steps runs in CI/CD
+┌──────────────────────────────────────────────────────────────────────┐
+│                         LLM-ASSISTED QA FLOW                        │
+├──────────────────────────────────────────────────────────────────────┤
+│ Story File                                                           │
+│   └─ External text story or story inside stories/                    │
+│                                                                      │
+│ scripts/run-agent.js                                                 │
+│   ├─ reads story                                                     │
+│   ├─ triggers UI inspection                                          │
+│   ├─ requests Playwright test generation from Claude                 │
+│   └─ runs generated test with Playwright                             │
+│                                                                      │
+│ reports/                                                             │
+│   ├─ selector-map.json                                               │
+│   ├─ execution-result.json                                           │
+│   └─ bug-summary.json                                                │
+│                                                                      │
+│ scripts/analyze-and-create-issue.js                                  │
+│   ├─ analyzes failure with Claude                                    │
+│   ├─ checks duplicate signals                                        │
+│   └─ creates GitHub issue when workflow policy allows                │
+└──────────────────────────────────────────────────────────────────────┘
+
+                ┌──────────────────────────────────┐
+                │      GitHub Actions / CI-CD      │
+                ├──────────────────────────────────┤
+                │ Feature push   → smoke run       │
+                │ Pull request   → validation only │
+                │ Push to main   → regression run  │
+                └──────────────────────────────────┘
 ```
 
 ---
@@ -57,52 +77,44 @@ GitHub Actions controls when each of these steps runs in CI/CD
 - UI inspection and selector discovery
 - automated browser test execution
 - AI-assisted failure analysis
-- GitHub issue creation for confirmed bugs
-- **GitHub Actions based CI/CD workflow design**
+- automated GitHub issue creation for confirmed bugs
+- GitHub Actions-based CI/CD workflow design
 - duplicate-issue control across push, PR, and main runs
 
 ---
 
-## ⚙️ GitHub Actions / CI-CD Workflow
+## ⚡ GitHub Actions Workflow
 
 This project uses **GitHub Actions** as its CI/CD pipeline.
 
-Workflow file:
-
+**Workflow file**
 - `.github/workflows/agent-ci.yml`
 
-GitHub Actions is responsible for:
-
+**GitHub Actions handles:**
 - installing dependencies
 - starting the demo app
 - running smoke or regression stories
 - saving reports and artifacts
-- allowing or blocking GitHub issue creation depending on the event type
+- allowing or blocking GitHub issue creation based on event type
 
 ### Trigger behavior
 
-#### 1. Push to feature branch
-- GitHub Actions runs the **smoke pipeline**
-- this run **can create a GitHub issue** for a real new bug
-- useful for early feedback during development
+| Event | Pipeline | Issue creation | Purpose |
+|---|---|---:|---|
+| Feature branch `push` | Smoke | ✅ Allowed | Early feedback during development |
+| `pull_request` | Validation | ❌ Blocked | Prevent duplicate issue creation |
+| `push` to `main` | Full regression | ✅ Allowed | Final regression check after merge |
 
-#### 2. Pull request
-- GitHub Actions runs validation again
-- this run **does not create GitHub issues**
-- this prevents duplicate issue creation from both `push` and `pull_request`
-
-#### 3. Push to `main`
-- GitHub Actions runs the **full regression pipeline**
-- this run **can create GitHub issues**
-- this acts as the final CI regression check after merge
-
-### In simple terms
+<details>
+<summary><b>See the flow in plain words</b></summary>
 
 ```text
 feature branch push → smoke run → issue creation allowed
 pull request        → validation run → no issue creation
 main push           → regression run → issue creation allowed
 ```
+
+</details>
 
 ---
 
@@ -111,49 +123,26 @@ main push           → regression run → issue creation allowed
 The project includes duplicate protection so the same bug is less likely to be reported multiple times.
 
 It uses multiple signals such as:
-
 - hidden fingerprint markers in issue bodies
 - stable failure markers
 - normalized title matching
 - normalized expected/actual behavior matching
 
-This is important because the same underlying bug can appear:
-
+This matters because the same underlying bug can appear:
 - on a feature branch push
 - again in a PR validation run
 - again after merge to `main`
 
-The CI/CD policy and dedupe logic work together to reduce that noise.
-
 ---
 
-## 🗂️ Key Files
+## 🐞 Intentional Demo Bug
 
-| File / Folder | Purpose |
-|---|---|
-| `scripts/run-agent.js` | Main orchestration flow: reads the story, generates test code, runs Playwright, and hands off for analysis |
-| `scripts/inspect-ui.js` | Inspects the running app and builds selector context |
-| `scripts/analyze-and-create-issue.js` | Analyzes execution results and creates GitHub issues when allowed |
-| `.github/workflows/agent-ci.yml` | **GitHub Actions CI/CD workflow** for smoke and regression runs |
-| `stories/smoke/` | Smoke stories used on feature branch pushes |
-| `stories/regression/` | Regression stories used in the main regression workflow |
-| `reports/` | Execution results, analysis outputs, selector maps, and runtime artifacts |
-| `app/` | Demo login app with an intentional bug |
+The demo login app is intentionally incorrect.
 
----
-
-## 🐞 Intentional Bug in the Demo App
-
-The login app is intentionally incorrect.
-
-### Current bug
-Login succeeds when **either** the email **or** the password is correct.
-
-### Correct behavior
-Login should succeed only when **both** email and password are correct.
+- **Current bug:** login succeeds when **either** the email **or** the password is correct
+- **Correct behavior:** login should succeed only when **both** email and password are correct
 
 This intentional defect is used to demonstrate:
-
 - story-driven test generation
 - bug detection through execution
 - AI-assisted failure analysis
@@ -161,21 +150,37 @@ This intentional defect is used to demonstrate:
 
 ---
 
-## 📁 Story Design
+## 🧪 Story Strategy
 
-The project uses a cleaner story split:
+The project uses a cleaner split between smoke and regression coverage.
 
-### Smoke story
-A single canonical login smoke scenario covers the core login flow.
+- **Smoke story**: one canonical login flow for fast feedback
+- **Regression story**: a different validation path, such as incomplete credentials
 
-### Regression story
-The regression story covers a different validation path, such as incomplete credentials, instead of duplicating the same wrong-password scenario.
-
-This keeps the test suite cleaner and reduces noisy duplicate bug reports.
+This keeps the suite cleaner and reduces noisy duplicate bug reports.
 
 ---
 
-## 📁 Folder Structure
+## 🗂️ Project Map
+
+<details>
+<summary><b>Key files and folders</b></summary>
+
+| File / Folder | Purpose |
+|---|---|
+| `scripts/run-agent.js` | Main orchestration flow: reads the story, generates test code, runs Playwright, and hands off for analysis |
+| `scripts/inspect-ui.js` | Inspects the running app and builds selector context |
+| `scripts/analyze-and-create-issue.js` | Analyzes execution results and creates GitHub issues when allowed |
+| `.github/workflows/agent-ci.yml` | GitHub Actions CI/CD workflow for smoke and regression runs |
+| `stories/smoke/` | Smoke stories used on feature branch pushes |
+| `stories/regression/` | Regression stories used in the main regression workflow |
+| `reports/` | Execution results, analysis outputs, selector maps, and runtime artifacts |
+| `app/` | Demo login app with an intentional bug |
+
+</details>
+
+<details>
+<summary><b>Folder structure</b></summary>
 
 ```text
 llm-qa-automation-pipeline/
@@ -198,9 +203,14 @@ llm-qa-automation-pipeline/
 └─ README.md
 ```
 
+</details>
+
 ---
 
 ## ⚙️ Local Setup
+
+<details>
+<summary><b>Install and run locally</b></summary>
 
 ### 1. Install dependencies
 
@@ -226,9 +236,14 @@ For local runs and GitHub issue creation, configure:
 
 For GitHub Actions, secrets are configured in the GitHub repository.
 
+</details>
+
 ---
 
 ## 📥 Story Input
+
+<details>
+<summary><b>How story input works</b></summary>
 
 The main agent flow accepts a story file path.
 
@@ -255,9 +270,14 @@ Success is indicated by the message: "Login successful. Welcome back."
 Failure is indicated by the message: "Invalid email or password."
 ```
 
+</details>
+
 ---
 
 ## 🚀 Useful Commands
+
+<details>
+<summary><b>Open command reference</b></summary>
 
 ### Run the main agent flow locally
 
@@ -277,11 +297,14 @@ npm run agent:inspect -- --url "http://127.0.0.1:4173" --out ".\reports\selector
 npm run agent:analyze -- --story "C:\path\to\your\story.txt" --report ".\reports\execution-result.json"
 ```
 
+</details>
+
 ---
 
-## 🔁 Git + GitHub Actions Workflow
+## 🔁 Development Flow
 
-Typical development flow:
+<details>
+<summary><b>Typical Git + GitHub Actions flow</b></summary>
 
 ```text
 make changes locally
@@ -301,7 +324,7 @@ merge to main
 GitHub Actions full regression run starts
 ```
 
-Typical commands:
+### Typical commands
 
 ```bash
 git checkout -b feature/hybrid-issue-dedupe-fix
@@ -310,51 +333,13 @@ git commit -m "Fix CI issue dedupe and clean login stories"
 git push -u origin feature/hybrid-issue-dedupe-fix
 ```
 
----
-
-## 📊 Example CI/CD Flow
-
-```text
-Push to feature branch
-↓
-GitHub Actions smoke run
-↓
-Bug found
-↓
-Claude analyzes the failure
-↓
-If it is a real bug, GitHub issue can be created
-↓
-Open PR
-↓
-GitHub Actions validates again without creating issue
-↓
-Merge to main
-↓
-GitHub Actions full regression run checks again without reopening the same bug unnecessarily
-```
+</details>
 
 ---
 
-## 🧹 Notes
+## 📌 Notes
 
 - runtime artifacts in `reports/` should usually stay out of version control except intentional placeholders
 - feature branch push and main runs may both detect the same real bug, so duplicate control matters
 - PR runs are intentionally validation-only to reduce noise
 - GitHub Actions is a core part of this project, not an optional add-on
-
----
-
-## 📌 Summary
-
-This project is not just a test generator.
-
-It is a compact demonstration of how AI can assist QA automation across the full loop:
-
-- story input
-- UI understanding
-- test generation
-- execution
-- failure analysis
-- issue creation
-- **GitHub Actions based CI/CD orchestration**
