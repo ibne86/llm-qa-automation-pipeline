@@ -1,0 +1,18 @@
+{
+  "is_real_bug": true,
+  "title": "Login does not show error message when correct email is used with wrong password",
+  "summary": "Submitting a login form with a valid email and incorrect password does not display the expected 'Invalid email or password.",
+  "description": "According to the acceptance criteria, a login attempt with the correct email and a wrong password must fail and display 'Invalid email or password.' Instead, the error message is never rendered, meaning the application either silently accepts the wrong password or shows no feedback to the user. This prevents users from knowing their credentials are incorrect.",
+  "severity": "Critical",
+  "steps_to_reproduce": [
+    "Navigate to the login page",
+    "Enter the valid email: test@demo.com",
+    "Enter an incorrect password (e.g., WrongPassword1)",
+    "Submit the login form"
+  ],
+  "expected_result": "The error message 'Invalid email or password.' is displayed and login does not succeed.",
+  "actual_result": "The error message 'Invalid email or password.' is not visible; the application does not indicate login failure.",
+  "screenshot_path": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png",
+  "screenshot_url": "https://raw.githubusercontent.com/ibne86/llm-qa-automation-pipeline/main/artifacts/screenshots/1775470761375-login-does-not-show-error-message-when-correct-email-is-used-with-wrong-password.png",
+  "screenshot_repo_path": "artifacts/screenshots/1775470761375-login-does-not-show-error-message-when-correct-email-is-used-with-wrong-password.png"
+}
