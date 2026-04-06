@@ -176,23 +176,92 @@ async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
   });
 }
 
-function normalizeFingerprintPart(value) {
+function normalizeDedupeText(value) {
   return String(value || "")
     .toLowerCase()
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[`"'()[\]{}]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function buildBugFingerprint(summary) {
-  const rawFingerprint = [
-    normalizeFingerprintPart(summary.title),
-    normalizeFingerprintPart(summary.summary),
-    normalizeFingerprintPart(summary.expected_result),
-    normalizeFingerprintPart(summary.actual_result),
-  ].join(" | ");
+function sanitizeFailureLine(line) {
+  return String(line || "")
+    .replace(/[A-Z]:\\[^ \n\r\t)]+/g, "<path>")
+    .replace(/\/home\/runner\/work\/[^\s)]+/g, "<path>")
+    .replace(/file:\/\/\/?[^\s)]+/g, "<path>")
+    .replace(/:\d+:\d+/g, ":<line>:<col>")
+    .replace(/\b\d+ms\b/g, "<time>")
+    .trim();
+}
 
-  return createHash("sha256").update(rawFingerprint).digest("hex").slice(0, 24);
+function extractStableFailureSignal(report) {
+  const combined = `${report?.stderr || ""}\n${report?.stdout || ""}`;
+
+  const rawLines = combined
+    .split(/\r?\n/)
+    .map(sanitizeFailureLine)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const ignorePatterns = [
+    /^at /i,
+    /^attachment #/i,
+    /^video:/i,
+    /^trace:/i,
+    /^screenshot:/i,
+    /^bug summary /i,
+    /^execution report updated/i,
+    /^running \d+ tests?/i,
+    /^node\.js v/i,
+    /^error: process completed with exit code/i,
+  ];
+
+  const lines = rawLines.filter(
+    (line) => !ignorePatterns.some((pattern) => pattern.test(line))
+  );
+
+  const priorityPatterns = [
+    /expect\(.*\).*to/i,
+    /\bexpected\b.*\b(received|actual)\b/i,
+    /\b(received|actual)\b.*\bexpected\b/i,
+    /\bstrict mode violation\b/i,
+    /\btimeout\b/i,
+    /\bwaiting for\b/i,
+    /\berror:/i,
+    /\bfailed\b/i,
+    /invalid email or password/i,
+    /login successful/i,
+  ];
+
+  for (const pattern of priorityPatterns) {
+    const hit = lines.find((line) => pattern.test(line));
+    if (hit) {
+      return normalizeDedupeText(hit);
+    }
+  }
+
+  return normalizeDedupeText(lines.slice(0, 3).join(" | "));
+}
+
+function buildBugFingerprint({ summary, report }) {
+  const expected = normalizeDedupeText(summary?.expected_result);
+  const actual = normalizeDedupeText(summary?.actual_result);
+  const rawFailure = extractStableFailureSignal(report);
+
+  const stableBugKey = [
+    expected && `expected:${expected}`,
+    rawFailure && `failure:${rawFailure}`,
+    actual && `actual:${actual}`,
+  ]
+    .filter(Boolean)
+    .join("|");
+
+  return createHash("sha256")
+    .update(stableBugKey || "generic-bug")
+    .digest("hex")
+    .slice(0, 24);
 }
 
 function getSourceContext() {
@@ -286,11 +355,11 @@ async function findExistingOpenIssueByFingerprint({ owner, repo, token, fingerpr
   };
 }
 
-async function createGitHubIssue(summary) {
+async function createGitHubIssue(summary, report) {
   const token = (process.env.GITHUB_TOKEN || "").trim();
   const owner = (process.env.GITHUB_OWNER || "").trim();
   const repo = (process.env.GITHUB_REPO || "").trim();
-  const fingerprint = buildBugFingerprint(summary);
+  const fingerprint = buildBugFingerprint({ summary, report });
 
   if (!token || !owner || !repo) {
     return {
@@ -532,11 +601,11 @@ Task:
   let issueResult = {
     created: false,
     reason: "No issue created",
-    fingerprint: buildBugFingerprint(bugSummary),
+    fingerprint: buildBugFingerprint({ summary: bugSummary, report }),
   };
 
   if (bugSummary.is_real_bug) {
-    issueResult = await createGitHubIssue(bugSummary);
+    issueResult = await createGitHubIssue(bugSummary, report);
   }
 
   const updatedReport = {
@@ -553,7 +622,9 @@ Task:
       issueCreated: issueResult.created || false,
       issueReason: issueResult.reason || "",
       duplicateIssue: issueResult.duplicate || false,
-      bugFingerprint: issueResult.fingerprint || buildBugFingerprint(bugSummary),
+      bugFingerprint:
+        issueResult.fingerprint ||
+        buildBugFingerprint({ summary: bugSummary, report }),
     },
   };
 
