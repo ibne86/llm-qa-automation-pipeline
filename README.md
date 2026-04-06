@@ -192,3 +192,9 @@ npm run agent:analyze -- --story "C:\path\to\your\story.txt" --report ".\reports
 ## 🧹 Cleanup Note
 
 This repository generates runtime artifacts during execution. Those outputs should generally stay out of version control except for placeholders such as `reports/.gitkeep`.
+
+---
+
+## 🧹 Testing
+
+another push with the same bug still does not create a new issue
