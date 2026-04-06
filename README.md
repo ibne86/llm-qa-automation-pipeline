@@ -199,3 +199,4 @@ This repository generates runtime artifacts during execution. Those outputs shou
 ## 🧹 Testting Pipeline
 
 One issue is created.
+Second push doesn't create the same issue.
