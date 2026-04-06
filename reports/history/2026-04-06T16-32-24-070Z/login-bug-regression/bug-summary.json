@@ -1,0 +1,18 @@
+{
+  "is_real_bug": true,
+  "title": "Login does not reject valid email with wrong password",
+  "summary": "Submitting a valid email with an incorrect password does not display the expected 'Invalid email or password.",
+  "description": "When a user enters a valid email (test@demo.com) combined with a wrong password, the login form fails to show the error message 'Invalid email or password.' instead of rejecting the attempt. This means the application is not consistently enforcing authentication validation, potentially allowing unintended access or providing no feedback to the user on failure.",
+  "severity": "High",
+  "steps_to_reproduce": [
+    "Navigate to the login page",
+    "Enter a valid email: test@demo.com",
+    "Enter an incorrect/wrong password (not Password123)",
+    "Click the login/submit button"
+  ],
+  "expected_result": "The error message 'Invalid email or password.' should be visible and the login should be rejected.",
+  "actual_result": "The error message 'Invalid email or password.' is not displayed; the element is not found within the timeout period.",
+  "screenshot_path": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png",
+  "screenshot_url": "https://raw.githubusercontent.com/ibne86/llm-qa-automation-pipeline/main/artifacts/screenshots/1775493162632-login-does-not-reject-valid-email-with-wrong-password.png",
+  "screenshot_repo_path": "artifacts/screenshots/1775493162632-login-does-not-reject-valid-email-with-wrong-password.png"
+}
