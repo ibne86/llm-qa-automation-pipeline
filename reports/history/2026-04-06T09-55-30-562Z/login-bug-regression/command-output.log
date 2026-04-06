@@ -1,0 +1,77 @@
+Story: login-bug-regression.txt
+Command exit code: 0
+
+--- stdout ---
+◇ injecting env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+Generated files:
+- pages/LoginPage.js
+- generated-tests/login.generated.spec.js
+Execution report saved to: /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/execution-result.json
+Generated Playwright test failed.
+Pipeline will continue to bug analysis.
+Check reports/execution-result.json for details.
+Playwright stdout:
+
+Running 2 tests using 1 worker
+·F
+
+  1) generated-tests/login.generated.spec.js:11:1 › valid email + wrong password should fail ───────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Invalid email or password.', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Invalid email or password.', { exact: true })[22m
+
+
+       at ../pages/LoginPage.js:41
+
+      39 |
+      40 |   async assertLoginFailure() {
+    > 41 |     await expect(this.errorMessage).toBeVisible();
+         |                                     ^
+      42 |     await expect(this.successMessage).not.toBeVisible();
+      43 |   }
+      44 | }
+        at LoginPage.assertLoginFailure (/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/pages/LoginPage.js:41:37)
+        at /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/generated-tests/login.generated.spec.js:15:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/login.generated-valid-email-wrong-password-should-fail/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/login.generated-valid-email-wrong-password-should-fail/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/login.generated-valid-email-wrong-password-should-fail/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/login.generated-valid-email-wrong-password-should-fail/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    generated-tests/login.generated.spec.js:11:1 › valid email + wrong password should fail ────────
+  1 passed (6.8s)
+
+Starting bug analysis and GitHub issue step...
+◇ injecting env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+Bug summary JSON saved to: /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/bug-summary.json
+Bug summary Markdown saved to: /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/bug-summary.md
+GitHub issue created: https://github.com/ibne86/llm-qa-automation-pipeline/issues/28
+Execution report updated: /home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/reports/execution-result.json
+
+Bug analysis step finished.
+
+
+--- stderr ---
+
