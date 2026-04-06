@@ -1,0 +1,13 @@
+Title: Login smoke validation
+
+As a returning user,
+I want to log in with my registered credentials,
+so that I can access my account.
+
+Acceptance criteria:
+- valid email: test@demo.com
+- valid password: Password123
+- Success is indicated by the message: "Login successful. Welcome back."
+- Failure is indicated by the message: "Invalid email or password."
+- Correct email + correct password should succeed.
+- Correct email + wrong password should fail.

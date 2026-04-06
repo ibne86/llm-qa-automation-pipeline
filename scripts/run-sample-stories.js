@@ -126,7 +126,7 @@ async function runStory(projectRoot, storyPath, runDir) {
 
 async function main() {
   const projectRoot = process.cwd();
-  const storiesDir = path.resolve(getArg("--storiesDir") || "stories/samples");
+  const storiesDir = path.resolve(getArg("--storiesDir") || "stories/regression");
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = path.join(projectRoot, "reports", "history", runId);
   const latestDir = path.join(projectRoot, "reports", "history", "latest");

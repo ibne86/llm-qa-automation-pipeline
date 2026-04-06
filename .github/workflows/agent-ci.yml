@@ -6,26 +6,35 @@ on:
       - "reports/**"
       - "playwright-report/**"
       - "artifacts/screenshots/**"
+  pull_request:
+    paths-ignore:
+      - "reports/**"
+      - "playwright-report/**"
+      - "artifacts/screenshots/**"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
 
 permissions:
   contents: write
   issues: write
 
 concurrency:
-  group: agent-ci-${{ github.ref }}
+  group: agent-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  run-agent-pipeline:
+  smoke-agent-pipeline:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     env:
       APP_URL: http://127.0.0.1:4173
-      STORY_FILE: stories/samples/login-bug-regression.txt
+      STORY_FILE: stories/smoke/login-smoke.txt
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_OWNER: ${{ github.repository_owner }}
       GITHUB_REPO: ${{ github.event.repository.name }}
-      GITHUB_UPLOAD_BRANCH: ${{ github.ref_name }}
+      GITHUB_UPLOAD_BRANCH: ${{ github.head_ref || github.ref_name }}
 
     steps:
       - name: Check out repository
@@ -65,14 +74,88 @@ jobs:
           cat preview.log || true
           exit 1
 
-      - name: Run agent against sample stories
-        run: npm run agent:run:samples
+      - name: Run smoke agent flow
+        run: npm run agent:run -- --story "$STORY_FILE"
 
-      - name: Upload reports as workflow artifacts
+      - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-ci-artifacts
+          name: smoke-agent-artifacts-${{ github.run_id }}
+          path: |
+            reports/execution-result.json
+            reports/bug-summary.json
+            reports/bug-summary.md
+            playwright-report
+            test-results
+            preview.log
+          if-no-files-found: warn
+
+      - name: Stop preview server
+        if: always()
+        run: |
+          if [ -f preview.pid ]; then
+            kill $(cat preview.pid) || true
+          fi
+
+  full-regression-pipeline:
+    if: (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: http://127.0.0.1:4173
+      STORIES_DIR: stories/regression
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_OWNER: ${{ github.repository_owner }}
+      GITHUB_REPO: ${{ github.event.repository.name }}
+      GITHUB_UPLOAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start preview server
+        run: |
+          nohup npm run preview > preview.log 2>&1 &
+          echo $! > preview.pid
+
+      - name: Wait for app to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Preview server failed to start"
+          cat preview.log || true
+          exit 1
+
+      - name: Run full regression agent flow
+        run: npm run agent:run:samples -- --storiesDir "$STORIES_DIR"
+
+      - name: Upload full regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-regression-artifacts-${{ github.run_id }}
           path: |
             reports/history
             reports/execution-result.json
@@ -84,7 +167,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Commit report snapshots back to repository
-        if: always()
+        if: always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
