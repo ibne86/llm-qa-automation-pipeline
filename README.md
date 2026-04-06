@@ -85,11 +85,13 @@ This project uses **GitHub Actions** as its CI/CD pipeline.
 - `.github/workflows/agent-ci.yml`
 
 **GitHub Actions handles:**
-- Installing dependencies
-- Starting the demo app
-- Running smoke or regression stories
-- Saving reports and artifacts
-- Allowing or blocking GitHub issue creation based on event type
+- installing dependencies
+- starting the demo app
+- running smoke or regression stories
+- saving reports and artifacts
+- allowing or blocking GitHub issue creation based on event type
+
+### Trigger behavior
 
 | Event | Pipeline | Issue creation | Purpose |
 |---|---|---:|---|
@@ -98,7 +100,7 @@ This project uses **GitHub Actions** as its CI/CD pipeline.
 | `push` to `main` | Full regression | ✅ Allowed | Final regression check after merge |
 
 <details>
-<summary><b>See trigger behavior in plain words</b></summary>
+<summary><b>See the flow in plain words</b></summary>
 
 ```text
 feature branch push → smoke run → issue creation allowed
@@ -135,20 +137,28 @@ The project uses a cleaner split between smoke and regression coverage.
 This keeps the suite cleaner and reduces noisy duplicate bug reports.
 
 <details>
-<summary><b>Open duplicate-issue control details</b></summary>
+<summary><b>Duplicate-Issue Control — Quality signal for recruiters</b></summary>
 
-The project includes duplicate protection so the same bug is less likely to be reported multiple times.
+This project includes **duplicate-issue control**, which is an important quality feature in the pipeline.
 
-It uses multiple signals such as:
-- Hidden fingerprint markers in issue bodies
-- Stable failure markers
-- Normalized title matching
-- Normalized expected/actual behavior matching
+It shows that the workflow does not just detect bugs — it also avoids creating the same GitHub issue repeatedly across feature branch pushes, pull requests, and `main` runs.
 
-This matters because the same underlying bug can appear:
-- On a feature branch push
-- Again in a PR validation run
-- Again after merge to `main`
+**Why this adds quality**
+- reduces noisy duplicate issues
+- keeps bug reporting cleaner and more trustworthy
+- shows the pipeline is automation-aware, not just automation-heavy
+- demonstrates more realistic CI/CD behavior
+
+**How duplicate detection works**
+- hidden fingerprint markers in issue bodies
+- stable failure markers
+- normalized title matching
+- normalized expected and actual behavior matching
+
+**Where it matters**
+- a feature branch `push`
+- a `pull_request` validation run
+- a `push` to `main`
 
 </details>
 
