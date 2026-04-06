@@ -248,14 +248,13 @@ function extractStableFailureSignal(report) {
   return normalizeDedupeText(lines.slice(0, 3).join(" | "));
 }
 
-function buildBugFingerprint({ summary, report }) {
+function buildBugFingerprint({ summary }) {
   const expected = normalizeDedupeText(summary?.expected_result);
   const actual = normalizeDedupeText(summary?.actual_result);
-  const rawFailure = extractStableFailureSignal(report);
 
   const stableBugKey = [
+    "scope:login",
     expected && `expected:${expected}`,
-    rawFailure && `failure:${rawFailure}`,
     actual && `actual:${actual}`,
   ]
     .filter(Boolean)
