@@ -159,8 +159,11 @@ async function uploadScreenshotToRepo(summary, screenshotAbsolutePath) {
   };
 
   const branch =
-    (process.env.GITHUB_UPLOAD_BRANCH || process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || "").trim() ||
-    await getDefaultBranch(headers, owner, repo);
+    (process.env.GITHUB_UPLOAD_BRANCH ||
+      process.env.GITHUB_HEAD_REF ||
+      process.env.GITHUB_REF_NAME ||
+      "").trim() || (await getDefaultBranch(headers, owner, repo));
+
   const ext = path.extname(screenshotAbsolutePath) || ".png";
   const fileName = `${Date.now()}-${slugify(summary.title)}${ext}`;
   const repoPath = `artifacts/screenshots/${fileName}`;
@@ -271,9 +274,10 @@ function getSourceContext() {
   const repository = process.env.GITHUB_REPOSITORY || "local";
   const runId = process.env.GITHUB_RUN_ID || "";
   const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
-  const runUrl = runId && repository
-    ? `${serverUrl}/${repository}/actions/runs/${runId}`
-    : "";
+  const runUrl =
+    runId && repository
+      ? `${serverUrl}/${repository}/actions/runs/${runId}`
+      : "";
 
   return {
     branch,
@@ -320,29 +324,49 @@ function buildGitHubIssueBody(summary, fingerprint) {
   return `## Summary\n${summary.summary}\n\n## Description\n${summary.description}\n\n## Severity\n${summary.severity}\n\n## Steps to reproduce\n${steps}\n\n## Expected result\n${summary.expected_result}\n\n## Actual result\n${summary.actual_result}\n\n## CI Context\n- Branch: ${source.branch}\n- Commit: ${source.sha}\n${runSection}\n\n${attachmentSection}\n\n${buildFingerprintMarker(fingerprint)}\n`;
 }
 
-async function findExistingOpenIssueByFingerprint({ owner, repo, token, fingerprint }) {
-  const query = encodeURIComponent(
-    `repo:${owner}/${repo} is:issue is:open in:body "bug-fingerprint:${fingerprint}"`
-  );
-  const url = `https://api.github.com/search/issues?q=${query}`;
+async function fetchOpenIssues({ owner, repo, token, maxPages = 5 }) {
+  const allIssues = [];
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: "application/vnd.github+json",
-      "user-agent": "llm-qa-automation-pipeline",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+  for (let page = 1; page <= maxPages; page += 1) {
+    const url = `https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=100&page=${page}`;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`GitHub issue search failed: ${response.status} ${errorText}`);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+        accept: "application/vnd.github+json",
+        "user-agent": "llm-qa-automation-pipeline",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`GitHub open-issues lookup failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    const issuesOnly = Array.isArray(data)
+      ? data.filter((item) => !item.pull_request)
+      : [];
+
+    allIssues.push(...issuesOnly);
+
+    if (issuesOnly.length < 100) {
+      break;
+    }
   }
 
-  const data = await response.json();
-  const existing = Array.isArray(data.items) ? data.items[0] : null;
+  return allIssues;
+}
+
+async function findExistingOpenIssueByFingerprint({ owner, repo, token, fingerprint }) {
+  const marker = buildFingerprintMarker(fingerprint);
+  const issues = await fetchOpenIssues({ owner, repo, token });
+
+  const existing = issues.find((issue) =>
+    String(issue.body || "").includes(marker)
+  );
 
   if (!existing) {
     return null;
