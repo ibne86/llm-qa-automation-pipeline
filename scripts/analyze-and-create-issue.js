@@ -300,6 +300,14 @@ function normalizeIssueText(value) {
     .trim();
 }
 
+function shouldCreateGitHubIssues() {
+  const raw = String(process.env.ENABLE_GITHUB_ISSUES || "true")
+    .trim()
+    .toLowerCase();
+
+  return !["false", "0", "no", "off"].includes(raw);
+}
+
 function toMarkdown(summary) {
   const steps = (summary.steps_to_reproduce || [])
     .map((step, i) => `${i + 1}. ${step}`)
@@ -664,7 +672,16 @@ Task:
   };
 
   if (bugSummary.is_real_bug) {
-    issueResult = await createGitHubIssue(bugSummary, report);
+    if (shouldCreateGitHubIssues()) {
+      issueResult = await createGitHubIssue(bugSummary, report);
+    } else {
+      issueResult = {
+        created: false,
+        duplicate: false,
+        fingerprint: buildBugFingerprint({ summary: bugSummary }),
+        reason: "GitHub issue creation is disabled for this run.",
+      };
+    }
   }
 
   const updatedReport = {
