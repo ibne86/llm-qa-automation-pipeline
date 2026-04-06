@@ -1,0 +1,18 @@
+{
+  "is_real_bug": true,
+  "title": "Login does not show error message when wrong password is entered with valid email",
+  "summary": "Submitting a valid email with an incorrect password does not display the expected 'Invalid email or password.",
+  "description": "When a user enters a correct email (test@demo.com) combined with a wrong password, the application fails to render the error feedback message. This leaves the user without any indication that their credentials were rejected. The login form should reject the attempt and display 'Invalid email or password.' but the element is never found in the DOM.",
+  "severity": "High",
+  "steps_to_reproduce": [
+    "Navigate to the login page",
+    "Enter the valid email: test@demo.com",
+    "Enter an incorrect password (e.g., WrongPassword)",
+    "Submit the login form"
+  ],
+  "expected_result": "The error message 'Invalid email or password.' is displayed to the user.",
+  "actual_result": "No error message appears; the 'Invalid email or password.' element is not found in the page after submitting invalid credentials.",
+  "screenshot_path": "/home/runner/work/llm-qa-automation-pipeline/llm-qa-automation-pipeline/test-results/login.generated-valid-email-wrong-password-should-fail/test-failed-1.png",
+  "screenshot_url": "https://raw.githubusercontent.com/ibne86/llm-qa-automation-pipeline/main/artifacts/screenshots/1775472994907-login-does-not-show-error-message-when-wrong-password-is-entered-with-valid-emai.png",
+  "screenshot_repo_path": "artifacts/screenshots/1775472994907-login-does-not-show-error-message-when-wrong-password-is-entered-with-valid-emai.png"
+}
